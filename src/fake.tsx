@@ -2,9 +2,9 @@ import { Action, ActionPanel, Clipboard, Color, Icon, List } from "@raycast/api"
 import { showFailureToast, useCachedState, usePromise } from "@raycast/utils";
 import { useRef } from "react";
 
-import { faker, Randomizer } from "@faker-js/faker";
+import { faker, Randomizer, SimpleFaker } from "@faker-js/faker";
 import { RandomGenerator, xoroshiro128plus } from "pure-rand";
-import { invoke } from "es-toolkit/compat";
+import { invoke, isObject } from "es-toolkit/compat";
 import * as cheerio from "cheerio";
 
 // const cache = new Cache();
@@ -23,37 +23,126 @@ function generatePureRandRandomizer(
   return self;
 }
 
-function runCommand(categoryName: string, methodName: string = "") {
-  if (categoryName.includes("randomizer")) {
-    // const randomizer = generatePureRandRandomizer();
-    return "randomizer not supported";
+function checkParams(fn: Function) {
+  if (fn?.length > 0) {
+    return `Need params ${fn}`;
   }
 
-  const needParams = [
-    "between",
-    "betweens",
-    "helpers",
-    "fromCharacters",
-    "utilities",
-    "setDefaultRefDate",
-    "seed",
-    "constructor",
-    "getMetadata",
-  ];
-  if (needParams.some((v) => `${categoryName}.${methodName}`.includes(v))) {
-    return "need params";
-  }
+  return false;
+}
 
+const randomSeed = Date.now() ^ (Math.random() * 0x100000000);
+const dateRef = new Date("2020-01-01");
+
+function runCommand(itemText: string, headerItemText: string = "", item: Item) {
+  const _itemText = itemText.toLowerCase();
   let result;
+
+  if (itemText === "Faker") {
+    if (checkParams(faker[headerItemText])) {
+      result = "Need params";
+    }
+
+    if (headerItemText === "seed") {
+      faker[headerItemText](randomSeed);
+      result = `${itemText}.${headerItemText} seed done`;
+    }
+
+    if (headerItemText === "setDefaultRefDate") {
+      faker[headerItemText](dateRef);
+      result = `${itemText}.${headerItemText} done`;
+    }
+
+    result = faker[headerItemText]();
+  }
+
+  if (itemText === "SimpleFaker") {
+    const customSimpleFaker = new SimpleFaker();
+
+    if (checkParams(customSimpleFaker[headerItemText])) {
+      return;
+    }
+
+    if (headerItemText === "seed") {
+      customSimpleFaker[headerItemText](randomSeed);
+      result = `${itemText}.${headerItemText} seed done`;
+    }
+
+    if (headerItemText === "setDefaultRefDate") {
+      customSimpleFaker[headerItemText](dateRef);
+      result = `${itemText}.${headerItemText} done`;
+    }
+
+    result = customSimpleFaker[headerItemText]();
+  }
+
+  if (itemText === "Randomizer") {
+    const randomizer = generatePureRandRandomizer();
+
+    if (headerItemText === "seed") {
+      randomizer[headerItemText](42);
+      return `${itemText}.${headerItemText} seed done`;
+    }
+
+    result = randomizer[headerItemText]();
+  }
+
+  if (itemText === "String") {
+    if (headerItemText === "fromCharacters") {
+      return faker.string[headerItemText]("mock string");
+    }
+  }
+
+  if (itemText === "Helpers") {
+    if (["weightedArrayElement", "shuffle", "arrayElements", "arrayElement"].includes(headerItemText)) {
+      return faker[_itemText][headerItemText]([
+        { weight: 5, value: "sunny" },
+        { weight: 4, value: "rainy" },
+        { weight: 1, value: "snowy" },
+      ]);
+    }
+
+    if (["objectKey", "objectValue", "objectEntry"].includes(headerItemText)) {
+      return faker[_itemText][headerItemText]({ myProperty: "myValue" });
+    }
+
+    if (["fake"].includes(headerItemText)) {
+      return faker[_itemText][headerItemText]("Hi, my name is {{person.firstName}} {{person.lastName}}!");
+    }
+
+    if (["maybe"].includes(headerItemText)) {
+      return faker[_itemText][headerItemText](() => "Hello World!", { probability: 0.9 });
+    }
+    if (["enumValue"].includes(headerItemText)) {
+      enum Color {
+        Red,
+        Green,
+        Blue,
+      }
+
+      return faker[_itemText][headerItemText](Color);
+    }
+  }
+
+  if (itemText === "Date") {
+    if (["between", "betweens"].includes(headerItemText)) {
+      return faker[_itemText][headerItemText]({
+        from: "2020-01-01T00:00:00.000Z",
+        to: "2030-01-01T00:00:00.000Z",
+        count: 2,
+      });
+    }
+  }
+
   try {
-    result = invoke(faker, `${categoryName}.${methodName}`);
+    result = invoke(faker, `${_itemText}.${headerItemText}`);
   } catch (e) {
-    console.log(e, `${categoryName}.${methodName}`);
-    result = `occur some error, ${methodName}`;
+    result = `${headerItemText}: ${e.message}`;
     showFailureToast(result);
   }
 
-  return result;
+  if (!result) return "failed";
+  return isObject(result) ? JSON.stringify(result) : result;
 }
 
 function openInBrowser(url: string) {
@@ -158,45 +247,47 @@ export default function Command() {
 
   return (
     <List navigationTitle={`${version}`}>
-      {showDetails?.map((item: Item, i: number) => (
-        <List.Section title={item.text} key={`section-item-${i}`} subtitle={item.text}>
-          {item.headers
-            .filter((t: HeaderItem) => t.text !== "constructor" || !t.deprecated)
-            .map((headerItem: HeaderItem, index: number) => (
-              <List.Item
-                key={`header-item-${index}`}
-                title={`${headerItem.text}`}
-                subtitle={`${item?.text?.toLowerCase()}.${headerItem?.text}`}
-                accessories={[
-                  {
-                    text: { value: headerItem.deprecated ? `Deprecated` : "", color: Color.Orange },
-                    icon: headerItem.deprecated ? Icon.Warning : null,
-                  },
-                  { tag: { value: new Date(), color: Color.Magenta } },
-                ]}
-                actions={
-                  <ActionPanel title={`Let's play it`}>
-                    <ActionPanel.Submenu icon={Icon.EyeDropper} title="Actions">
-                      <Action
-                        icon={{ source: Icon.Play, tintColor: Color.Green }}
-                        title="Run it"
-                        onAction={async () => {
-                          await Clipboard.paste(runCommand(`${item.text.toLowerCase()}.${headerItem.text}`));
-                        }}
-                      />
-                      <Action.OpenInBrowser
-                        url={item.apiUrl}
-                        icon={{ source: Icon.Window, tintColor: Color.Yellow }}
-                        title="View in Browser"
-                        onOpen={openInBrowser}
-                      />
-                    </ActionPanel.Submenu>
-                  </ActionPanel>
-                }
-              ></List.Item>
-            ))}
-        </List.Section>
-      ))}
+      {showDetails
+        ?.filter((i) => !["Utilities"].includes(i.text))
+        ?.map((item: Item, i: number) => (
+          <List.Section title={item.text} key={`section-item-${i}`} subtitle={item.text}>
+            {item.headers
+              .filter((t: HeaderItem) => !["constructor"].includes(t.text))
+              .map((headerItem: HeaderItem, index: number) => (
+                <List.Item
+                  key={`header-item-${index}`}
+                  title={`${headerItem.text} | ${runCommand(item.text, headerItem.text, item)}`}
+                  subtitle={`${item?.text?.toLowerCase()}.${headerItem?.text}`}
+                  accessories={[
+                    {
+                      text: { value: headerItem.deprecated ? `Deprecated` : "", color: Color.Orange },
+                      icon: headerItem.deprecated ? Icon.Warning : null,
+                    },
+                    { tag: { value: new Date(), color: Color.Magenta } },
+                  ]}
+                  actions={
+                    <ActionPanel title={`Let's play it`}>
+                      <ActionPanel.Submenu icon={Icon.EyeDropper} title="Actions">
+                        <Action
+                          icon={{ source: Icon.Play, tintColor: Color.Green }}
+                          title="Run it"
+                          onAction={async () => {
+                            await Clipboard.paste(runCommand(item.text, headerItem.text, item));
+                          }}
+                        />
+                        <Action.OpenInBrowser
+                          url={item.apiUrl}
+                          icon={{ source: Icon.Window, tintColor: Color.Yellow }}
+                          title="View in Browser"
+                          onOpen={openInBrowser}
+                        />
+                      </ActionPanel.Submenu>
+                    </ActionPanel>
+                  }
+                ></List.Item>
+              ))}
+          </List.Section>
+        ))}
     </List>
   );
 }
