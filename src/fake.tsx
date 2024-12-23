@@ -1,18 +1,44 @@
 import { Action, ActionPanel, Clipboard, Color, Icon, List } from "@raycast/api";
 import { showFailureToast, useCachedState, usePromise } from "@raycast/utils";
 import { useRef } from "react";
-
-import { faker, Randomizer, SimpleFaker } from "@faker-js/faker";
+import { Faker, faker, Randomizer, SimpleFaker } from "@faker-js/faker";
 import { RandomGenerator, xoroshiro128plus } from "pure-rand";
 import { invoke, isObject } from "es-toolkit/compat";
 import * as cheerio from "cheerio";
 
 // const cache = new Cache();
 
+interface Item {
+  text: string;
+  apiUrl: string;
+  headers: HeaderItem[];
+  headers2: string[];
+}
+
+interface HeaderItem {
+  text: string;
+  apiUrl: string;
+  class: string;
+  deprecated: boolean;
+}
+
+type TFaker = Faker & {
+  [key: string]: any;
+};
+
+type TCustomSimpleFaker = SimpleFaker & {
+  [key: string]: any;
+};
+
+type TRandomizer = Randomizer & {
+  [key: string]: any;
+  generator: RandomGenerator;
+};
+
 function generatePureRandRandomizer(
   seed: number | number[] = Date.now() ^ (Math.random() * 0x100000000),
   factory: (seed: number) => RandomGenerator = xoroshiro128plus,
-): Randomizer {
+): TRandomizer {
   const self = {
     next: () => (self.generator.unsafeNext() >>> 0) / 0x100000000,
     seed: (seed: number | number[]) => {
@@ -20,10 +46,11 @@ function generatePureRandRandomizer(
     },
   } as Randomizer & { generator: RandomGenerator };
   self.seed(seed);
+
   return self;
 }
 
-function checkParams(fn: Function) {
+function checkParams(fn: () => NonNullable<unknown>) {
   if (fn?.length > 0) {
     return `Need params ${fn}`;
   }
@@ -34,12 +61,14 @@ function checkParams(fn: Function) {
 const randomSeed = Date.now() ^ (Math.random() * 0x100000000);
 const dateRef = new Date("2020-01-01");
 
-function runCommand(itemText: string, headerItemText: string = "", item: Item) {
+function runCommand(itemText: string, headerItemText: string = "") {
   const _itemText = itemText.toLowerCase();
   let result;
 
+  const f: TFaker = faker;
+
   if (itemText === "Faker") {
-    if (checkParams(faker[headerItemText])) {
+    if (checkParams(f[headerItemText])) {
       result = "Need params";
     }
 
@@ -53,11 +82,11 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
       result = `${itemText}.${headerItemText} done`;
     }
 
-    result = faker[headerItemText]();
+    result = f[headerItemText]();
   }
 
   if (itemText === "SimpleFaker") {
-    const customSimpleFaker = new SimpleFaker();
+    const customSimpleFaker: TCustomSimpleFaker = new SimpleFaker();
 
     if (checkParams(customSimpleFaker[headerItemText])) {
       return;
@@ -77,7 +106,7 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
   }
 
   if (itemText === "Randomizer") {
-    const randomizer = generatePureRandRandomizer();
+    const randomizer: TRandomizer = generatePureRandRandomizer();
 
     if (headerItemText === "seed") {
       randomizer[headerItemText](42);
@@ -95,7 +124,7 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
 
   if (itemText === "Helpers") {
     if (["weightedArrayElement", "shuffle", "arrayElements", "arrayElement"].includes(headerItemText)) {
-      return faker[_itemText][headerItemText]([
+      return f[_itemText][headerItemText]([
         { weight: 5, value: "sunny" },
         { weight: 4, value: "rainy" },
         { weight: 1, value: "snowy" },
@@ -103,15 +132,15 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
     }
 
     if (["objectKey", "objectValue", "objectEntry"].includes(headerItemText)) {
-      return faker[_itemText][headerItemText]({ myProperty: "myValue" });
+      return f[_itemText][headerItemText]({ myProperty: "myValue" });
     }
 
     if (["fake"].includes(headerItemText)) {
-      return faker[_itemText][headerItemText]("Hi, my name is {{person.firstName}} {{person.lastName}}!");
+      return f[_itemText][headerItemText]("Hi, my name is {{person.firstName}} {{person.lastName}}!");
     }
 
     if (["maybe"].includes(headerItemText)) {
-      return faker[_itemText][headerItemText](() => "Hello World!", { probability: 0.9 });
+      return f[_itemText][headerItemText](() => "Hello World!", { probability: 0.9 });
     }
     if (["enumValue"].includes(headerItemText)) {
       enum Color {
@@ -120,13 +149,13 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
         Blue,
       }
 
-      return faker[_itemText][headerItemText](Color);
+      return f[_itemText][headerItemText](Color);
     }
   }
 
   if (itemText === "Date") {
     if (["between", "betweens"].includes(headerItemText)) {
-      return faker[_itemText][headerItemText]({
+      return f[_itemText][headerItemText]({
         from: "2020-01-01T00:00:00.000Z",
         to: "2030-01-01T00:00:00.000Z",
         count: 2,
@@ -137,11 +166,13 @@ function runCommand(itemText: string, headerItemText: string = "", item: Item) {
   try {
     result = invoke(faker, `${_itemText}.${headerItemText}`);
   } catch (e) {
-    result = `${headerItemText}: ${e.message}`;
+    const msg = e instanceof Error;
+    result = `${headerItemText}: ${msg && e.message}`;
     showFailureToast(result);
   }
 
   if (!result) return "failed";
+
   return isObject(result) ? JSON.stringify(result) : result;
 }
 
@@ -151,20 +182,6 @@ function openInBrowser(url: string) {
   } catch (e) {
     console.log(e);
   }
-}
-
-interface Item {
-  text: string;
-  apiUrl: string;
-  headers: HeaderItem[];
-  headers2: string[];
-}
-
-interface HeaderItem {
-  text: string;
-  apiUrl: string;
-  class: string;
-  deprecated: boolean;
 }
 
 async function getData(url: string) {
@@ -256,7 +273,7 @@ export default function Command() {
               .map((headerItem: HeaderItem, index: number) => (
                 <List.Item
                   key={`header-item-${index}`}
-                  title={`${headerItem.text} | ${runCommand(item.text, headerItem.text, item)}`}
+                  title={`${headerItem.text} | ${runCommand(item.text, headerItem.text)}`}
                   subtitle={`${item?.text?.toLowerCase()}.${headerItem?.text}`}
                   accessories={[
                     {
@@ -270,9 +287,9 @@ export default function Command() {
                       <ActionPanel.Submenu icon={Icon.EyeDropper} title="Actions">
                         <Action
                           icon={{ source: Icon.Play, tintColor: Color.Green }}
-                          title="Run it"
+                          title="Run It"
                           onAction={async () => {
-                            await Clipboard.paste(runCommand(item.text, headerItem.text, item));
+                            await Clipboard.paste(runCommand(item.text, headerItem.text));
                           }}
                         />
                         <Action.OpenInBrowser
