@@ -1,3 +1,3 @@
 # Fake value
 
-Generate random value using fake.js
+## A `Raycast` extension that get random value using fake.js, except `Utilities` methods
