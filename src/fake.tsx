@@ -248,6 +248,7 @@ export default function Command() {
   const abortable = useRef<AbortController>();
   const [showDetails, setShowDetails] = useCachedState<Item[]>("show-details", []);
   const [version, setVersion] = useCachedState<string>("");
+  const fakerBaseUrl = "https://fakerjs.dev";
 
   usePromise(
     async (url: string) => {
@@ -256,7 +257,7 @@ export default function Command() {
       v && setShowDetails(v.list as Item[]);
       v && setVersion(v.version);
     },
-    ["https://fakerjs.dev/api/"],
+    [fakerBaseUrl + "/api"],
     {
       abortable,
     },
@@ -292,9 +293,9 @@ export default function Command() {
                           }}
                         />
                         <Action.OpenInBrowser
-                          url={item.apiUrl}
-                          icon={{ source: Icon.Window, tintColor: Color.Yellow }}
-                          title="View in Browser"
+                          url={fakerBaseUrl + headerItem.apiUrl}
+                          icon={{ source: Icon.Link, tintColor: Color.Yellow }}
+                          title={"View Api Doc in Browser"}
                           onOpen={openInBrowser}
                         />
                       </ActionPanel.Submenu>
