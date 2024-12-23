@@ -2,17 +2,18 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "fake-value",
   "title": "Fake value",
-  "description": "Generate random value using fake.js",
+  "description": "Generate fake value using fake.js",
   "icon": "extension-icon.png",
   "author": "ellipse120",
   "categories": [
-    "Developer Tools"
+    "Developer Tools",
+    "Fake.js"
   ],
   "license": "MIT",
   "commands": [
     {
-      "name": "fake",
-      "title": "Fake",
+      "name": "fake-value",
+      "title": "Fake Value",
       "subtitle": "Generate fake value using fake.js",
       "description": "Give you a fake value using fake.js",
       "mode": "view"
