@@ -273,14 +273,13 @@ export default function Command() {
               .map((headerItem: HeaderItem, index: number) => (
                 <List.Item
                   key={`header-item-${index}`}
-                  title={`${headerItem.text} | ${runCommand(item.text, headerItem.text)}`}
+                  title={`${headerItem.text}`}
                   subtitle={`${item?.text?.toLowerCase()}.${headerItem?.text}`}
                   accessories={[
                     {
                       text: { value: headerItem.deprecated ? `Deprecated` : "", color: Color.Orange },
                       icon: headerItem.deprecated ? Icon.Warning : null,
                     },
-                    { tag: { value: new Date(), color: Color.Magenta } },
                   ]}
                   actions={
                     <ActionPanel title={`Let's play it`}>
