@@ -264,7 +264,7 @@ export default function Command() {
   );
 
   return (
-    <List navigationTitle={`${version}`}>
+    <List navigationTitle={`fake.js version: ${version}`}>
       {showDetails
         ?.filter((i) => !["Utilities"].includes(i.text))
         ?.map((item: Item, i: number) => (
